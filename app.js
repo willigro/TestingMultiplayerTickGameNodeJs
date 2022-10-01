@@ -4,6 +4,15 @@ var server = require('http').Server(app);
 var io = require('socket.io')(server);
 var port = process.env.PORT || 3000;
 
+const { PlayerAimRequest } = require('./player_aim_request.js');
+const { PlayerAimResponse } = require('./player_aim_response.js');
+const { PlayerMovementRequest } = require('./player_movement_request.js');
+const { PlayerMovementResponse } = require('./player_movement_response.js');
+const { PlayerMovementResult } = require('./player_movement_result.js');
+const { Player } = require('./player.js');
+const { Position } = require('./position.js');
+
+
 const ON_CONNECTION = "connection"
 const ON_DISCONNECT = "disconnect"
 const ON_PLAYER_MOVEMENT = "player movement"
@@ -88,9 +97,10 @@ function onPlayerMoved(socket) {
 
         const data = JSON.parse(payload);
 
-        // console.log(data)
-
-        const newPosition = calculateNewPosition(
+        /*
+        Data from the request
+        */
+        const playerMovementRequest = new PlayerMovementRequest(
             data.playerMovement.angle,
             data.playerMovement.strength,
             data.playerMovement.x,
@@ -98,42 +108,55 @@ function onPlayerMoved(socket) {
             data.playerMovement.velocity,
         );
 
-        // const newAim = calculateNewAimPosition(
-        //     ...
-        // );
+        const playerAimRequest = new PlayerAimRequest(
+            data.playerAim.angle,
+            data.playerAim.strength,
+        );
 
-        const playerMovement = {
-            angle: data.playerMovement.angle,
-            strength: data.playerMovement.strength,
-            x: data.playerMovement.x,
-            y: data.playerMovement.y,
-            newPosition: newPosition,
-            velocity: data.playerMovement.velocity,
-        };
-
-        const playerAim = {
-            angle: data.playerAim.angle,
-            strength: data.playerAim.strength,
-        }
-
-        const playerMovementResult = {
-            id: socket.id,
-            playerMovement: playerMovement,
-            playerAim: playerAim,
-        }
+        // New position
+        const newPosition = calculateNewPosition(
+            playerMovementRequest.angle,
+            playerMovementRequest.strength,
+            playerMovementRequest.x,
+            playerMovementRequest.y,
+            playerMovementRequest.velocity,
+        );
 
         updatePlayerMovementAndAimValues(
             socket.id,
-            playerMovement,
-            playerAim,
+            playerMovementRequest,
+            playerAimRequest,
         );
+
+        /*
+        Response
+        */
+        const playerMovementResponse = new PlayerMovementResponse(
+            playerMovementRequest.angle,
+            playerMovementRequest.strength,
+            playerMovementRequest.x,
+            playerMovementRequest.y,
+            newPosition,
+            playerMovementRequest.velocity,
+        );
+
+        const playerAimResponse = new PlayerAimResponse(
+            playerAimRequest.angle,
+            playerAimRequest.strength,
+        )
+
+        const playerMovementResult = new PlayerMovementResult(
+            socket.id,
+            playerMovementResponse,
+            playerAimResponse,
+        )
 
         // Testing delay
         // sleep(1000).then(() => {
         //     emitToAllExceptTheSender(socket, EMIT_PLAYER_MOVED, { playerMovement: playerMovement });
         // });
 
-        emitToAllExceptTheSender(socket, EMIT_PLAYERS_MOVEMENT, { playerMovementResult: playerMovementResult });
+        emitToAllExceptTheSender(socket, EMIT_PLAYERS_MOVEMENT, { playerMovementResult: JSON.stringify(playerMovementResult) });
     });
 }
 
@@ -163,6 +186,10 @@ function getRandomColor() {
     return color;
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function calculateNewPosition(angle, strength, x, y, velocity) {
     var newX = Math.cos(angle * Math.PI / 180.0) * strength
     var newY = -Math.sin(angle * Math.PI / 180.0) * strength
@@ -177,31 +204,4 @@ function calculateNewPosition(angle, strength, x, y, velocity) {
     newY = position.y * velocity + y;
 
     return new Position(newX, newY);
-}
-
-class Position {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    length() {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
-    }
-
-    normalize() {
-        const len = this.length();
-
-        if (len == 0.0) {
-            this.x = 0.0;
-            this.y = 0.0;
-        } else {
-            this.x = this.x / len;
-            this.y = this.y / len;
-        }
-    }
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
