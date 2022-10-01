@@ -1,4 +1,4 @@
- class PlayerMovementResult {
+ class PlayerMovementAndAimResponse {
      constructor(socketId, playerMovement, playerAim) {
          this.id = socketId;
          this.playerMovement = playerMovement;
@@ -7,5 +7,5 @@
  }
 
  module.exports = {
-     PlayerMovementResult,
+     PlayerMovementAndAimResponse,
  };

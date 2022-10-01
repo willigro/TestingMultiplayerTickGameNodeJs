@@ -1,4 +1,4 @@
-class PlayerMovementResponse {
+class PlayerMovement {
     constructor(angle, strength, x, y, newPosition, velocity) {
         this.angle = angle;
         this.strength = strength;
@@ -10,5 +10,5 @@ class PlayerMovementResponse {
 }
 
 module.exports = {
-    PlayerMovementResponse,
+    PlayerMovement,
 };
