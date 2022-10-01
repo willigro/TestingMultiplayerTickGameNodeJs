@@ -1,0 +1,21 @@
+## Send to the sender and noone else
+
+socket.emit('hello', msg);
+
+## Send to everyone including the sender(if the sender is in the room) in the room "my room"
+
+io.to('my room').emit('hello', msg);
+
+## Send to everyone except the sender(if the sender is in the room) in the room "my room"
+
+socket.broadcast.to('my room').emit('hello', msg);
+
+## Send to everyone in every room, including the sender
+
+io.emit('hello', msg); // short version
+
+io.sockets.emit('hello', msg);
+
+## Send to specific socket only (private chat)
+
+socket.broadcast.to(otherSocket.id).emit('hello', msg);
