@@ -68,16 +68,14 @@ class PlayerMovementController {
             playerAim,
         )
 
-        // console.log(playerMovementAndAimResponse)
-
         return playerMovementAndAimResponse
     }
 
     updatePlayerMovementAndAimValues(id, playerMovement, playerAim) {
-        const index = this.matchController.getConnectedPlayers().findIndex(data => data.id == id);
-        if (index > -1) {
-            this.matchController.getConnectedPlayers()[index].position.x = playerMovement.x
-            this.matchController.getConnectedPlayers()[index].position.y = playerMovement.y
+        const player = this.matchController.getConnectedPlayers().find(data => data.id == id);
+        if (player) {
+            player.position.x = playerMovement.x
+            player.position.y = playerMovement.y
         }
     }
 

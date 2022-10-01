@@ -18,20 +18,20 @@ class MatchController {
             getRandomColor(),
         );
 
-        connectedPlayers.push(newPlayer);
+        this.getConnectedPlayers().push(newPlayer);
 
-        console.log("User connected! " + socket.id + " players " + JSON.stringify(connectedPlayers));
+        console.log("User connected! " + socket.id + " players " + JSON.stringify(this.getConnectedPlayers()));
 
-        return { newPlayer: newPlayer, players: connectedPlayers };
+        return { newPlayer: newPlayer, players: this.getConnectedPlayers() };
     }
 
     removePlayer(socket) {
-        console.log("Player Disconnected! " + socket.id + " players " + JSON.stringify(connectedPlayers));
-        const index = connectedPlayers.findIndex(data => data.id == socket.id);
+        console.log("Player Disconnected! " + socket.id + " players " + JSON.stringify(this.getConnectedPlayers()));
+        const index = this.getConnectedPlayers().findIndex(player => player.id == socket.id);
         if (index > -1) {
-            connectedPlayers.splice(index, 1);
+            this.getConnectedPlayers().splice(index, 1);
         }
-        console.log("Player Disconnected! Remove index " + index + " players " + JSON.stringify(connectedPlayers));
+        console.log("Player Disconnected! Remove index " + index + " players " + JSON.stringify(this.getConnectedPlayers()));
     }
 }
 
