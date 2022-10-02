@@ -6,21 +6,25 @@ var port = process.env.PORT || 3000;
 
 const { MatchController } = require('./controllers/match_controller.js');
 const { PlayerMovementController } = require('./controllers/player_movement_controller.js');
+const { PlayerShootingController } = require('./controllers/player_shooting_controller.js');
 
 const ON_CONNECTION = "connection"
 const ON_DISCONNECT = "disconnect"
 const ON_PLAYER_MOVEMENT = "player movement"
+const ON_PLAYER_SHOOTING = "player shooting"
 
 const EMIT_NEW_PLAYER_CONNECTED = "new player connected"
 const EMIT_PLAYER_CREATED = "player created"
 const EMIT_PLAYER_DISCONNECTED = "player disconnected"
 const EMIT_PLAYERS_MOVEMENT = "players movement"
+const EMIT_PLAYER_SHOOTING = "player shooting"
 
 /*
  * Controllers
  */
 const matchController = new MatchController();
 const playerMovementController = new PlayerMovementController(matchController);
+const playerShootingController = new PlayerShootingController(matchController);
 
 
 /**
@@ -61,6 +65,7 @@ io.on(ON_CONNECTION, function(socket) {
 function setupListeners(socket) {
     onPlayerDisconnected(socket);
     onPlayerMoved(socket);
+    onPlayerShooting(socket);
 }
 
 function emitToAll(socket, tag, payload) {
@@ -89,6 +94,14 @@ function onPlayerMoved(socket) {
         // });
 
         emitToAllExceptTheSender(socket, EMIT_PLAYERS_MOVEMENT, { playerMovementResult: response });
+    });
+}
+
+function onPlayerShooting(socket) {
+    socket.on(ON_PLAYER_SHOOTING, function(payload) {
+        const response = playerShootingController.playerShooting(payload)
+
+        emitToAllExceptTheSender(socket, EMIT_PLAYER_SHOOTING, { result: response });
     });
 }
 
