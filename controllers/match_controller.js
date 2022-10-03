@@ -1,12 +1,15 @@
 const { Player } = require('../entity/player.js');
 const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
+const { Bullet } = require('../entity/bullet.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
 /**
  * Coneected players
  */
 var connectedPlayers = [];
+
+var bullets = [];
 
 const playerMovementController = new PlayerMovementController();
 const playerShootingController = new PlayerShootingController();
@@ -35,6 +38,10 @@ class MatchController {
 
     getConnectedPlayers() {
         return connectedPlayers;
+    }
+
+    getBullets() {
+        return bullets;
     }
 
     generateNewPlayer(socket) {
@@ -74,7 +81,8 @@ class MatchController {
             this.update();
 
             this.packgeState = {
-                players: this.getConnectedPlayers()
+                players: this.getConnectedPlayers(),
+                bullets: this.getBullets()
             }
 
             this.updateWorldState(this.packgeState);
@@ -98,9 +106,19 @@ class MatchController {
                 );
             }
         }
+
+        for (var i = 0; i < this.getBullets().length; i++) {
+            const bullet = this.getBullets()[i];
+            // console.log(bullet.isMoving())
+            if (bullet.isMoving()) {
+                playerShootingController.calculateNewBulletPosition(bullet);
+            } else {
+                this.getBullets().splice(i, 1);
+            }
+        }
     }
 
-    playerUpdate(id, payload) {
+    onPlayerUpdated(id, payload) {
         const player = this.getPlayerById(id);
         if (!player) {
             console.log("PLAYER NOT FOUND " + player);
@@ -108,8 +126,6 @@ class MatchController {
         }
 
         const data = JSON.parse(payload);
-
-        // console.log(data)
 
         player.playerMovement.angle = data.playerMovement.angle;
         player.playerMovement.strength = data.playerMovement.strength;
@@ -126,6 +142,26 @@ class MatchController {
 
         player.playerAim.angle = data.playerAim.angle;
         player.playerAim.strength = data.playerAim.strength;
+    }
+
+    onPlayerShooting(payload) {
+        const data = JSON.parse(payload);
+
+        console.log(data)
+
+        const bullet = new Bullet(
+            data.bulletId,
+            data.ownerId,
+            new Position(
+                data.position.x,
+                data.position.y,
+            ),
+            data.angle,
+            data.velocity,
+            200, // CREATE A CONST
+        );
+
+        this.getBullets().push(bullet);
     }
 
     getPlayerById(id) {

@@ -34,9 +34,9 @@ class PlayerShootingController {
         return playerShootingRespose;
     }
 
-    calculatePosition(playerShootingRequest) {
-        var normX = Math.cos(playerShootingRequest.angle * Math.PI / 180.0);
-        var normY = -Math.sin(playerShootingRequest.angle * Math.PI / 180.0);
+    calculateNewBulletPosition(bullet) {
+        var normX = Math.cos(bullet.angle * Math.PI / 180.0);
+        var normY = -Math.sin(bullet.angle * Math.PI / 180.0);
 
         const leng = Math.sqrt((normX * normX) + (normY * normY));
 
@@ -48,15 +48,11 @@ class PlayerShootingController {
             normY = normY / leng;
         }
 
-        // console.log("normalized x=" + normX + " y=" + normY + " angle=" + playerShootingRequest.angle, " velocity=" + playerShootingRequest.velocity + " leng=" + leng);
+        var velX = normX * bullet.velocity;
+        var velY = normY * bullet.velocity;
 
-        var velX = normX * playerShootingRequest.velocity;
-        var velY = normY * playerShootingRequest.velocity;
-
-        const x = playerShootingRequest.position.x + velX;
-        const y = playerShootingRequest.position.y + velY;
-
-        return new Position(x, y);
+        bullet.position.x = bullet.position.x + velX;
+        bullet.position.y = bullet.position.y + velY;
     }
 }
 

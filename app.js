@@ -9,11 +9,12 @@ const { MatchController } = require('./controllers/match_controller.js');
 const ON_CONNECTION = "connection"
 const ON_DISCONNECT = "disconnect"
 const ON_PLAYER_UPDATE = "player update"
+const ON_PLAYER_SHOOTING = "player shooting"
 
 const EMIT_NEW_PLAYER_CONNECTED = "new player connected"
 const EMIT_PLAYER_CREATED = "player created"
 const EMIT_PLAYER_DISCONNECTED = "player disconnected"
-const EMIT_PLAYER_UPDATE = "player update"
+const EMIT_WORLD_STATE = "world state"
 
 /*
  * Controllers
@@ -52,8 +53,7 @@ io.on(ON_CONNECTION, function(socket) {
     // console.log(socket.conn.server.clientsCount);
     // console.log(socket.server.engine.clientsCount);
     matchController.updateWorldState = function(response) {
-
-        emitToAll(io, EMIT_PLAYER_UPDATE, response);
+        emitToAll(io, EMIT_WORLD_STATE, response);
     }
 
     var response = matchController.generateNewPlayer(socket);
@@ -70,6 +70,7 @@ io.on(ON_CONNECTION, function(socket) {
 function setupListeners(socket) {
     onPlayerDisconnected(socket);
     onPlayerUpdate(socket);
+    onPlayerShooting(socket);
 }
 
 function emitToAll(emiter, tag, payload) {
@@ -91,7 +92,14 @@ function onPlayerDisconnected(socket) {
 function onPlayerUpdate(socket) {
     socket.on(ON_PLAYER_UPDATE, function(payload) {
         // THIS ID MUST COME FROM THE APP
-        matchController.playerUpdate(socket.id, payload)
+        matchController.onPlayerUpdated(socket.id, payload)
+    });
+}
+
+function onPlayerShooting(socket) {
+    socket.on(ON_PLAYER_SHOOTING, function(payload) {
+        // THIS ID MUST COME FROM THE APP
+        matchController.onPlayerShooting(payload)
     });
 }
 

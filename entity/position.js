@@ -19,6 +19,12 @@ class Position {
             this.y = this.y / len;
         }
     }
+
+    distance(positionTo) {
+        return Math.sqrt(
+            Math.pow(positionTo.x - this.x, 2) + Math.pow(positionTo.y - this.y, 2)
+        )
+    }
 }
 
 module.exports = {
