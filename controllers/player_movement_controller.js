@@ -7,9 +7,6 @@ const { Player } = require('../entity/player.js');
 const { Position } = require('../entity/position.js');
 
 class PlayerMovementController {
-    constructor(matchController) {
-        this.matchController = matchController;
-    }
 
     onPlayerMoved(socket, payload) {
         const data = JSON.parse(payload);
@@ -71,8 +68,8 @@ class PlayerMovementController {
         return playerMovementAndAimResponse
     }
 
-    updatePlayerMovementAndAimValues(id, playerMovement, playerAim) {
-        const player = this.matchController.getConnectedPlayers().find(data => data.id == id);
+    updatePlayerMovementAndAimValues(id, playerMovement, playerAim, players) {
+        const player = players.find(data => data.id == id);
         if (player) {
             player.position.x = playerMovement.x
             player.position.y = playerMovement.y

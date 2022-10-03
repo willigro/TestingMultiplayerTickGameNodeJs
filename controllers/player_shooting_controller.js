@@ -4,10 +4,6 @@ const { Position } = require('../entity/position.js');
 
 class PlayerShootingController {
 
-    constructor(matchController) {
-        this.matchController = matchController;
-    }
-
     playerShooting(payload) {
         const data = JSON.parse(payload);
 

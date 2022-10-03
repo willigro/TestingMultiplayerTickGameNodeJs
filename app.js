@@ -5,26 +5,21 @@ var io = require('socket.io')(server);
 var port = process.env.PORT || 3000;
 
 const { MatchController } = require('./controllers/match_controller.js');
-const { PlayerMovementController } = require('./controllers/player_movement_controller.js');
-const { PlayerShootingController } = require('./controllers/player_shooting_controller.js');
 
 const ON_CONNECTION = "connection"
 const ON_DISCONNECT = "disconnect"
-const ON_PLAYER_MOVEMENT = "player movement"
-const ON_PLAYER_SHOOTING = "player shooting"
+const ON_PLAYER_UPDATE = "player update"
 
 const EMIT_NEW_PLAYER_CONNECTED = "new player connected"
 const EMIT_PLAYER_CREATED = "player created"
 const EMIT_PLAYER_DISCONNECTED = "player disconnected"
-const EMIT_PLAYERS_MOVEMENT = "players movement"
-const EMIT_PLAYER_SHOOTING = "player shooting"
+const EMIT_PLAYER_UPDATE = "player update"
 
 /*
  * Controllers
  */
+
 const matchController = new MatchController();
-const playerMovementController = new PlayerMovementController(matchController);
-const playerShootingController = new PlayerShootingController(matchController);
 
 
 /**
@@ -53,6 +48,14 @@ server.listen(port, function() {
 
 io.on(ON_CONNECTION, function(socket) {
 
+    console.log("ON CONNECTION, " + socket.id);
+    // console.log(socket.conn.server.clientsCount);
+    // console.log(socket.server.engine.clientsCount);
+    matchController.updateWorldState = function(response) {
+
+        emitToAll(io, EMIT_PLAYER_UPDATE, response);
+    }
+
     var response = matchController.generateNewPlayer(socket);
 
     // Send to all clients except the sender
@@ -60,16 +63,17 @@ io.on(ON_CONNECTION, function(socket) {
     emitToAll(socket, EMIT_PLAYER_CREATED, response);
 
     setupListeners(socket);
+
+    matchController.initGame();
 });
 
 function setupListeners(socket) {
     onPlayerDisconnected(socket);
-    onPlayerMoved(socket);
-    onPlayerShooting(socket);
+    onPlayerUpdate(socket);
 }
 
-function emitToAll(socket, tag, payload) {
-    socket.emit(tag, payload);
+function emitToAll(emiter, tag, payload) {
+    emiter.emit(tag, payload);
 }
 
 function emitToAllExceptTheSender(socket, tag, payload) {
@@ -84,24 +88,10 @@ function onPlayerDisconnected(socket) {
     });
 }
 
-function onPlayerMoved(socket) {
-    socket.on(ON_PLAYER_MOVEMENT, function(payload) {
-
-        const response = playerMovementController.onPlayerMoved(socket, payload);
-        // Testing delay
-        // sleep(1000).then(() => {
-        //     emitToAllExceptTheSender(socket, EMIT_PLAYER_MOVED, { playerMovement: playerMovement });
-        // });
-
-        emitToAllExceptTheSender(socket, EMIT_PLAYERS_MOVEMENT, { playerMovementResult: response });
-    });
-}
-
-function onPlayerShooting(socket) {
-    socket.on(ON_PLAYER_SHOOTING, function(payload) {
-        const response = playerShootingController.playerShooting(payload)
-
-        emitToAllExceptTheSender(socket, EMIT_PLAYER_SHOOTING, { result: response });
+function onPlayerUpdate(socket) {
+    socket.on(ON_PLAYER_UPDATE, function(payload) {
+        // THIS ID MUST COME FROM THE APP
+        matchController.playerUpdate(socket.id, payload)
     });
 }
 

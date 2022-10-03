@@ -1,8 +1,16 @@
 class Player {
-    constructor(id, position, color) {
+    constructor(id, playerMovement, color) {
         this.id = id;
-        this.position = position;
+        this.playerMovement = playerMovement;
         this.color = color;
+    }
+
+    setPosition(position) {
+        this.playerMovement.position = position;
+    }
+
+    isMoving() {
+        return this.strength > 0;
     }
 }
 
