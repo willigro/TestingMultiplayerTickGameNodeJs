@@ -2,6 +2,7 @@ const { Player } = require('../entity/player.js');
 const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
 const { Bullet } = require('../entity/bullet.js');
+const { PlayerMovement } = require('../entity/player_movement.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
 /**
@@ -18,15 +19,6 @@ const DELAY = 1000 / 30; // rollback to 30 FPS
 
 // TODO move it
 const PLAYER_VELOCITY = 8
-
-class PlayerMovement {
-    constructor(position, angle, strength, velocity) {
-        this.position = position;
-        this.angle = angle;
-        this.strength = strength;
-        this.velocity = velocity;
-    }
-}
 
 class MatchController {
 
@@ -146,8 +138,6 @@ class MatchController {
 
     onPlayerShooting(payload) {
         const data = JSON.parse(payload);
-
-        console.log(data)
 
         const bullet = new Bullet(
             data.bulletId,

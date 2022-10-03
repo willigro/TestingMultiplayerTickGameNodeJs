@@ -1,10 +1,8 @@
 class PlayerMovement {
-    constructor(angle, strength, x, y, newPosition, velocity) {
+    constructor(position, angle, strength, velocity) {
+        this.position = position;
         this.angle = angle;
         this.strength = strength;
-        this.x = x;
-        this.y = y;
-        this.newPosition = newPosition;
         this.velocity = velocity;
     }
 }

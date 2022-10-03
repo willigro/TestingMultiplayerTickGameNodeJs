@@ -1,38 +1,4 @@
-const { PlayerShootingRequest } = require('../entity/player_shooting_request.js');
-const { PlayerShootingResponse } = require('../entity/player_shooting_response.js');
-const { Position } = require('../entity/position.js');
-
 class PlayerShootingController {
-
-    playerShooting(payload) {
-        const data = JSON.parse(payload);
-
-        const playerShootingRequest = new PlayerShootingRequest(
-            data.id,
-            data.angle,
-            data.bullet_position,
-            data.velocity,
-        );
-
-        /*
-        Think about continue to calculate it (doens't seem the best approach), or this value at this way
-        the problem is that if there is a delay the bullet will be show too wrong
-        */
-        const position = this.calculatePosition(playerShootingRequest);
-
-        console.log(JSON.stringify(position));
-
-        console.log(JSON.stringify(playerShootingRequest));
-
-        const playerShootingRespose = new PlayerShootingResponse(
-            playerShootingRequest.id,
-            playerShootingRequest.angle,
-            position,
-            playerShootingRequest.velocity,
-        );
-
-        return playerShootingRespose;
-    }
 
     calculateNewBulletPosition(bullet) {
         var normX = Math.cos(bullet.angle * Math.PI / 180.0);
