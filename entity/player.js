@@ -1,7 +1,8 @@
 class Player {
-    constructor(id, playerMovement, color) {
+    constructor(id, playerMovement, playerAim, color) {
         this.id = id;
         this.playerMovement = playerMovement;
+        this.playerAim = playerAim;
         this.color = color;
     }
 

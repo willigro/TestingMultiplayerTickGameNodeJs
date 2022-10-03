@@ -1,4 +1,5 @@
 const { Player } = require('../entity/player.js');
+const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
@@ -10,7 +11,7 @@ var connectedPlayers = [];
 const playerMovementController = new PlayerMovementController();
 const playerShootingController = new PlayerShootingController();
 
-const DELAY = 1000 / 30; // rollback t0 30 FPS
+const DELAY = 1000 / 30; // rollback to 30 FPS
 
 // TODO move it
 const PLAYER_VELOCITY = 8
@@ -45,6 +46,10 @@ class MatchController {
                 0,
                 PLAYER_VELOCITY,
             ),
+            new PlayerAim(
+                0,
+                0,
+            ),
             getRandomColor(),
         );
 
@@ -69,12 +74,8 @@ class MatchController {
             this.update();
 
             this.packgeState = {
-                players: connectedPlayers
+                players: this.getConnectedPlayers()
             }
-
-            // for (var i = 0; i < connectedPlayers.length; i++) {
-            //     console.log(connectedPlayers[i].id)
-            // }
 
             this.updateWorldState(this.packgeState);
 
@@ -83,9 +84,8 @@ class MatchController {
     }
 
     update() {
-        for (var i = 0; i < connectedPlayers.length; i++) {
-            const player = connectedPlayers[i];
-
+        for (var i = 0; i < this.getConnectedPlayers().length; i++) {
+            const player = this.getConnectedPlayers()[i];
             if (player.isMoving()) {
                 player.setPosition(
                     playerMovementController.calculateNewPosition(
@@ -109,6 +109,8 @@ class MatchController {
 
         const data = JSON.parse(payload);
 
+        // console.log(data)
+
         player.playerMovement.angle = data.playerMovement.angle;
         player.playerMovement.strength = data.playerMovement.strength;
         player.playerMovement.velocity = data.playerMovement.velocity;
@@ -121,6 +123,9 @@ class MatchController {
                 data.playerMovement.velocity,
             )
         );
+
+        player.playerAim.angle = data.playerAim.angle;
+        player.playerAim.strength = data.playerAim.strength;
     }
 
     getPlayerById(id) {
