@@ -15,7 +15,10 @@ var bullets = [];
 const playerMovementController = new PlayerMovementController();
 const playerShootingController = new PlayerShootingController();
 
-const DELAY = 1000 / 30; // rollback to 30 FPS
+const FPS = 30;
+const UPDATER_TICKS = 3;
+const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
+const MAX_UPDATER_TICKS_DELAY = 1000 / UPDATER_TICKS; // rollback to 30 FPS
 
 // TODO move it
 const PLAYER_VELOCITY = 8
@@ -23,9 +26,37 @@ const PLAYER_VELOCITY = 8
 class MatchController {
 
     constructor(updateWorldState) {
-        this.interval = null;
+        this.intervalGameLoop = null;
+        this.intervalGameWorldStateUpdater = null;
         this.updateWorldState = updateWorldState;
         this.packgeState = null;
+    }
+
+    initGame() {
+        this.initGameLoop();
+
+        this.initGameLoopUpdater();
+    }
+
+    initGameLoop() {
+        this.intervalGameLoop = setInterval(function() {
+            this.update();
+
+            this.packgeState = {
+                players: this.getConnectedPlayers(),
+                bullets: this.getBullets()
+            }
+        }.bind(this), MAX_FPS_DELAY);
+    }
+
+    initGameLoopUpdater() {
+        this.intervalGameWorldStateUpdater = setInterval(function() {
+            if (this.packgeState) {
+                this.updateWorldState(this.packgeState);
+
+                this.packgeState = null;
+            }
+        }.bind(this), MAX_UPDATER_TICKS_DELAY);
     }
 
     getConnectedPlayers() {
@@ -66,21 +97,6 @@ class MatchController {
             this.getConnectedPlayers().splice(index, 1);
         }
         console.log("Player Disconnected! Remove index " + index + " players " + JSON.stringify(this.getConnectedPlayers()));
-    }
-
-    initGame() {
-        this.interval = setInterval(function() {
-            this.update();
-
-            this.packgeState = {
-                players: this.getConnectedPlayers(),
-                bullets: this.getBullets()
-            }
-
-            this.updateWorldState(this.packgeState);
-
-            this.packgeState = null;
-        }.bind(this), DELAY);
     }
 
     update() {
