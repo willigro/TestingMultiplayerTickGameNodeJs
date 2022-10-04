@@ -25,6 +25,11 @@ class Position {
             Math.pow(positionTo.x - this.x, 2) + Math.pow(positionTo.y - this.y, 2)
         )
     }
+
+    multiple(value) {
+        this.x *= value;
+        this.y *= value;
+    }
 }
 
 module.exports = {

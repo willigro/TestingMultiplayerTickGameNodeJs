@@ -11,7 +11,7 @@ class Player {
     }
 
     isMoving() {
-        return this.strength > 0;
+        return this.playerMovement.strength > 0;
     }
 }
 
