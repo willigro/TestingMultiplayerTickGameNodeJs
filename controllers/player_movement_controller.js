@@ -15,16 +15,16 @@ class PlayerMovementController {
         const newX = x + (position.x * velocity) * deltaTime;
         const newY = y + (position.y * velocity) * deltaTime;
 
-        console.log(
-            "Normalized " + JSON.stringify(position) +
-            " Delta " + deltaTime +
-            " Cos " + cos +
-            " Sin " + sin +
-            " Angle " + angle +
-            " Strength " + strength +
-            " Velocity " + velocity +
-            " New X " + newX
-        );
+        // console.log(
+        //     "Normalized " + JSON.stringify(position) +
+        //     " Delta " + deltaTime +
+        //     " Cos " + cos +
+        //     " Sin " + sin +
+        //     " Angle " + angle +
+        //     " Strength " + strength +
+        //     " Velocity " + velocity +
+        //     " New X " + newX
+        // );
 
         return new Position(newX, newY);
     }
