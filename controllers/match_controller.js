@@ -2,8 +2,8 @@ const { Player } = require('../entity/player.js');
 const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
 const { Bullet } = require('../entity/bullet.js');
+const { Queue } = require('../entity/queue.js');
 const { PlayerMovement } = require('../entity/player_movement.js');
-const { ServerPayload } = require('../entity/server_payload.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
 /**
@@ -17,25 +17,18 @@ const playerMovementController = new PlayerMovementController();
 const playerShootingController = new PlayerShootingController();
 
 const FPS = 30;
-const UPDATER_TICKS = 1;
 const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
-const MAX_UPDATER_TICKS_DELAY = 1000 / UPDATER_TICKS; // rollback to 30 FPS
 
 // TODO move it
 const PLAYER_VELOCITY = 300.0
 
 // KEEP IT EQUALS TO THE APP
 const SERVER_TICK_RATE = 2;
-const BUFFER_SIZE = 1024;
 var timer = 0;
 var currentTick = 0;
 var minTimeBetweenTicks = 1 / SERVER_TICK_RATE;
 
 var deltaTime = 0.0;
-
-var stateBuffer = new Array(BUFFER_SIZE)
-var inputQueue = [];
-
 
 class MatchController {
 
@@ -141,6 +134,23 @@ class MatchController {
                 );
                 player.playerAim.angle = data.playerAim.angle;
                 player.playerAim.strength = data.playerAim.strength;
+
+                /*
+                First the payload must be a BULLET/SHOOT payload
+
+                I need to verify if this player can shoot, to do so I'll need to get the last
+                time that him shoot and compare with the current time
+                
+                BUT I'm gonna have a few problems, one of them is: is it trustable? 
+                - If there are two shoot requests I cannot simply remove it from the process list
+                  I'll need to schedule a new shoot to try it again, since the player must have 
+                  had schedule two shoots and he is waiting for it.
+                
+                  BUT!! I'll at first treat one a one.
+                */
+                if (player.canShoot()) {
+                    // start a new shoot
+                }
             }
         }
 
@@ -171,6 +181,7 @@ class MatchController {
     }
 
     onPlayerShooting(payload) {
+        // Added this payload to the inputs
         const data = JSON.parse(payload);
 
         const bullet = new Bullet(
@@ -222,18 +233,26 @@ class MatchController {
 
         this.getConnectedPlayers().push(newPlayer);
 
-        console.log("User connected! " + socket.id + " players " + JSON.stringify(this.getConnectedPlayers()));
+        //+ " players " + JSON.stringify(this.getConnectedPlayers())
+        console.log("User connected! " + socket.id);
 
         return { newPlayer: newPlayer, players: this.getConnectedPlayers(), tick: currentTick };
     }
 
     removePlayer(socket) {
-        console.log("Player Disconnected! " + socket.id + " players " + JSON.stringify(this.getConnectedPlayers()));
         const index = this.getConnectedPlayers().findIndex(player => player.id == socket.id);
+
         if (index > -1) {
             this.getConnectedPlayers().splice(index, 1);
         }
-        console.log("Player Disconnected! Remove index " + index + " players " + JSON.stringify(this.getConnectedPlayers()));
+
+        if (this.getConnectedPlayers().length == 0) {
+            console.log("clear interval")
+            clearInterval(this.intervalGameLoop);
+        }
+
+        // + " players " + JSON.stringify(this.getConnectedPlayers())
+        console.log("Player Disconnected! id=" + socket.id + " Remove index " + index);
     }
 
     getPlayerById(id) {
@@ -253,47 +272,3 @@ function getRandomColor() {
 module.exports = {
     MatchController,
 };
-
-
-
-class Queue {
-    constructor() {
-        this.elements = {};
-        this.head = 0;
-        this.tail = 0;
-    }
-    first() {
-        return this.elements[this.head];
-    }
-    enqueue(element) {
-        this.elements[this.tail] = element;
-        this.tail++;
-    }
-    dequeue() {
-        const item = this.elements[this.head];
-        delete this.elements[this.head];
-        this.head++;
-        return item;
-    }
-    clear() {
-        this.elements = {};
-        this.head = 0;
-        this.tail = 0;
-    }
-    peek() {
-        return this.elements[this.head];
-    }
-    toList() {
-        const arr = []
-        for (var i = this.head; i < this.tail; i++) {
-            arr.push(this.elements[i]);
-        }
-        return arr
-    }
-    get length() {
-        return this.tail - this.head;
-    }
-    get isEmpty() {
-        return this.length === 0;
-    }
-}
