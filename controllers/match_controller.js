@@ -41,10 +41,7 @@ class MatchController {
 
     constructor(updateWorldState) {
         this.intervalGameLoop = null;
-        this.intervalGameWorldStateUpdater = null;
-        this.intervalGameLoop2 = null;
         this.updateWorldState = updateWorldState;
-        this.packgeState = null;
 
         this.now = Date.now();
         this.lastUpdate = Date.now();
@@ -70,7 +67,7 @@ class MatchController {
     }
 
     initGameLoop() {
-        this.intervalGameLoop2 = setInterval(function() {
+        this.intervalGameLoop = setInterval(function() {
             this.tickDeltaTime();
 
             while (this.server_input_msgs.length > 0) { //  && Time.time >= this.server_input_msgs.Peek().delivery_time
