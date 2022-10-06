@@ -1,8 +1,9 @@
 class Player {
-    constructor(id, playerMovement, playerAim, color) {
+    constructor(id, playerMovement, playerAim, playerGunPointer, color) {
         this.id = id;
         this.playerMovement = playerMovement;
         this.playerAim = playerAim;
+        this.playerGunPointer = playerGunPointer;
         this.color = color;
 
         this.lastShot = new Date().getTime();

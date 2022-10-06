@@ -3,6 +3,7 @@ const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
 const { Bullet } = require('../entity/bullet.js');
 const { Queue } = require('../entity/queue.js');
+const { PlayerGunPointer } = require('../entity/player_gun_pointer.js');
 const { PlayerMovement } = require('../entity/player_movement.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
@@ -112,10 +113,10 @@ class MatchController {
     processInputs(payload, delta) {
         if (!payload) return;
 
-        var players = payload.playerUpdate.players;
+        var playerServer = payload.playerUpdate.players;
 
-        for (var i = 0; i < players.length; i++) {
-            const data = players[i];
+        for (var i = 0; i < playerServer.length; i++) {
+            const data = playerServer[i];
 
             const player = this.getPlayerById(data.id);
             if (player) {
@@ -148,11 +149,26 @@ class MatchController {
                 
                   BUT!! I'll at first treat one a one.
                 */
-                if (player.canShoot()) {
+                if (data.playerGunPointer && player.canShoot()) {
                     // start a new shoot
+                    const bullet = new Bullet(
+                        data.id + Date.now(),
+                        data.id,
+                        new Position(
+                            data.playerGunPointer.position.x,
+                            data.playerGunPointer.position.y,
+                        ),
+                        data.playerGunPointer.angle,
+                        200.0, // CREATE A CONST
+                        500.0, // CREATE A CONST
+                    );
+
+                    this.getBullets().push(bullet);
                 }
             }
         }
+
+        console.log("Bullets count=" + this.getBullets().length);
 
         // for (var i = 0; i < this.getBullets().length; i++) {
         //     const bullet = this.getBullets()[i];
@@ -224,6 +240,10 @@ class MatchController {
             ),
             new PlayerAim(
                 0,
+                0,
+            ),
+            new PlayerGunPointer(
+                new Position(0, 0),
                 0,
             ),
             getRandomColor(),
