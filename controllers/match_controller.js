@@ -17,7 +17,7 @@ var bullets = [];
 const playerMovementController = new PlayerMovementController();
 const playerShootingController = new PlayerShootingController();
 
-const FPS = 30;
+const FPS = 15;
 const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
 
 // TODO move it
@@ -91,9 +91,24 @@ class MatchController {
 
                                 packageToSend.tick = this.server_tick_number;
 
+                                if (packageToSend.bullets.length > 0) {
+                                    console.log(packageToSend.tick);
+                                }
+
                                 this.server_responses_queue.enqueue(packageToSend);
                             }
                     }
+                }
+            }
+
+            for (var i = 0; i < this.getBullets().length; i++) {
+                const bullet = this.getBullets()[i];
+                if (bullet.isMoving(deltaTime)) {
+                    // console.log("Moving bullet");
+                    playerShootingController.calculateNewBulletPosition(bullet, deltaTime);
+                } else {
+                    // console.log("Removing bullet");
+                    this.getBullets().splice(i, 1);
                 }
             }
 
@@ -135,6 +150,8 @@ class MatchController {
                 );
                 player.playerAim.angle = data.playerAim.angle;
                 player.playerAim.strength = data.playerAim.strength;
+                player.playerGunPointer.position.x = data.playerGunPointer.position.x;
+                player.playerGunPointer.position.y = data.playerGunPointer.position.y;
 
                 /*
                 First the payload must be a BULLET/SHOOT payload
@@ -150,6 +167,7 @@ class MatchController {
                   BUT!! I'll at first treat one a one.
                 */
                 if (data.playerGunPointer && player.canShoot()) {
+                    // console.log(JSON.stringify(data.playerGunPointer));
                     // start a new shoot
                     const bullet = new Bullet(
                         data.id + Date.now(),
@@ -159,8 +177,8 @@ class MatchController {
                             data.playerGunPointer.position.y,
                         ),
                         data.playerGunPointer.angle,
-                        200.0, // CREATE A CONST
                         500.0, // CREATE A CONST
+                        1000.0, // CREATE A CONST
                     );
 
                     this.getBullets().push(bullet);
@@ -168,13 +186,15 @@ class MatchController {
             }
         }
 
-        console.log("Bullets count=" + this.getBullets().length);
+        // console.log("Bullets count=" + this.getBullets().length);
 
         // for (var i = 0; i < this.getBullets().length; i++) {
         //     const bullet = this.getBullets()[i];
         //     if (bullet.isMoving()) {
-        //         playerShootingController.calculateNewBulletPosition(bullet);
+        //         // console.log("Moving bullet");
+        //         playerShootingController.calculateNewBulletPosition(bullet, delta);
         //     } else {
+        //         // console.log("Removing bullet");
         //         this.getBullets().splice(i, 1);
         //     }
         // }
@@ -182,7 +202,7 @@ class MatchController {
         const packgeState = {
             tick: currentTick,
             players: this.getConnectedPlayers(),
-            bullets: this.getBullets()
+            bullets: this.getBullets(),
         }
 
         return packgeState;

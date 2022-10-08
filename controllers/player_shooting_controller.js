@@ -1,6 +1,6 @@
 class PlayerShootingController {
 
-    calculateNewBulletPosition(bullet) {
+    calculateNewBulletPosition(bullet, deltaTime) {
         var normX = Math.cos(bullet.angle * Math.PI / 180.0);
         var normY = -Math.sin(bullet.angle * Math.PI / 180.0);
 
@@ -14,8 +14,8 @@ class PlayerShootingController {
             normY = normY / leng;
         }
 
-        var velX = normX * bullet.velocity;
-        var velY = normY * bullet.velocity;
+        var velX = normX * bullet.velocity * deltaTime;
+        var velY = normY * bullet.velocity * deltaTime;
 
         bullet.position.x = bullet.position.x + velX;
         bullet.position.y = bullet.position.y + velY;
