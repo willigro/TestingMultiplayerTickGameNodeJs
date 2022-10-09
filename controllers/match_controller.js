@@ -173,11 +173,11 @@ class MatchController {
             //       to wait a time X that is, for convenience, the same as the 1 tick, then I'll shoot again
             //       cause the first was at the tick 1, and at the tick 2 I'll skip and at the tick 3, the time
             //       has passed and I can shoot again.
-            if (payload.bulletInputsState.length > 0) {
-                console.log("Try to shoot");
-            }
+            // if (payload.bulletInputsState.length > 0) {
+            //     console.log("Try to shoot");
+            // }
             if (playerGunInputsState && payload.bulletInputsState.length > 0 && player.canShoot()) {
-                console.log("shooting");
+                // console.log("shooting");
                 const localBullet = payload.bulletInputsState[0]
                 const bullet = new Bullet(
                     localBullet.bulletId,
