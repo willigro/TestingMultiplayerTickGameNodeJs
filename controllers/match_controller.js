@@ -24,7 +24,7 @@ const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
 const PLAYER_VELOCITY = 300.0
 
 // KEEP IT EQUALS TO THE APP
-const SERVER_TICK_RATE = 2;
+const SERVER_TICK_RATE = 5;
 var timer = 0;
 var currentTick = 0;
 var minTimeBetweenTicks = 1 / SERVER_TICK_RATE;
@@ -44,6 +44,7 @@ class MatchController {
     }
 
     initServerValues() {
+        console.log("initServerValues");
         // server specific
         this.server_snapshot_rate = 0;
         this.server_tick_number = 0;
@@ -61,9 +62,9 @@ class MatchController {
     }
 
     initGameLoop() {
+        var localTick = 0
         this.intervalGameLoop = setInterval(function() {
             this.tickDeltaTime();
-
             while (this.server_input_msgs.length > 0) { //  && Time.time >= this.server_input_msgs.Peek().delivery_time
                 const input_msg = this.server_input_msgs.dequeue();
                 // console.log("server tick " + this.server_tick_number + " start tick from client " + input_msg.start_tick_number);
@@ -71,6 +72,7 @@ class MatchController {
                 // message contains an array of inputs, calculate what tick the final one is
                 const max_tick = input_msg.start_tick_number + input_msg.inputs.length - 1;
 
+                // console.log("this.server_tick_number=" + this.server_tick_number + " max_tick=" + max_tick);
                 // if that tick is greater than or equal to the current tick we're on, then it
                 // has inputs which are new
                 if (max_tick >= this.server_tick_number) {
@@ -80,34 +82,38 @@ class MatchController {
 
                     // console.log("start_i=" + start_i + " input_msg.inputs.length=" + input_msg.inputs.length);
                     // run through all relevant inputs, and step player forward
+                    // console.log("Tick=" + input_msg.start_tick_number + " size=" + input_msg.inputs.length)
                     for (var i = start_i; i < input_msg.inputs.length; ++i) {
                         const packageToSend = this.processInputs(input_msg.inputs[i], deltaTime);
 
-                        this.server_tick_number++
-                            // console.log("server_tick_number=" + server_tick_number)
-                            this.server_tick_accumulator++
-                            if (packageToSend && this.server_tick_accumulator >= this.server_snapshot_rate) {
-                                this.server_tick_accumulator = 0;
+                        this.server_tick_number++;
+                        // console.log("server_tick_number=" + server_tick_number)
+                        this.server_tick_accumulator++;
+                        if (packageToSend && this.server_tick_accumulator >= this.server_snapshot_rate) {
+                            this.server_tick_accumulator = 0;
 
-                                packageToSend.tick = this.server_tick_number;
+                            packageToSend.tick = this.server_tick_number;
 
-                                if (packageToSend.bullets.length > 0) {
-                                    console.log(packageToSend.tick);
-                                }
+                            // if (packageToSend.bullets.length > 0) {
+                            //     console.log(packageToSend.tick);
+                            // }
 
-                                this.server_responses_queue.enqueue(packageToSend);
-                            }
+                            this.server_responses_queue.enqueue(packageToSend);
+                        }
                     }
                 }
             }
 
+            // if (this.getBullets().length > 0) {
+            //     console.log(this.getBullets().length)
+            // }
             for (var i = 0; i < this.getBullets().length; i++) {
                 const bullet = this.getBullets()[i];
                 if (bullet.isMoving(deltaTime)) {
-                    // console.log("Moving bullet");
+                    // console.log("Moving bullet, new size: " + this.getBullets().length);
                     playerShootingController.calculateNewBulletPosition(bullet, deltaTime);
                 } else {
-                    // console.log("Removing bullet");
+                    // console.log("Removing bullet, new size: " + this.getBullets().length);
                     this.getBullets().splice(i, 1);
                 }
             }
@@ -118,92 +124,85 @@ class MatchController {
                 timer = 0;
                 if (this.server_responses_queue.length > 0) {
                     // console.log(Date.now() + " " + JSON.stringify(this.server_responses_queue.first()))
+                    // const list = this.server_responses_queue.toList()
+                    // for (var item in list) {
+                    //     if (list[item].bullets.length > 0)
+                    //         console.log(list[item].bullets)
+                    // }
                     this.updateWorldState({ response: this.server_responses_queue.toList() });
                     this.server_responses_queue.clear()
                 }
             }
+
+            localTick++;
         }.bind(this), MAX_FPS_DELAY);
     }
 
     processInputs(payload, delta) {
         if (!payload) return;
 
-        var playerServer = payload.playerUpdate.players;
+        const playerMovementInputsState = payload.playerInputsState.playerMovementInputsState;
+        const playerAimInputsState = payload.playerInputsState.playerAimInputsState;
+        const playerGunInputsState = payload.playerInputsState.playerGunInputsState;
 
-        for (var i = 0; i < playerServer.length; i++) {
-            const data = playerServer[i];
+        const player = this.getPlayerById(payload.playerId);
 
-            const player = this.getPlayerById(data.id);
-            if (player) {
-                player.playerMovement.angle = data.playerMovement.angle;
-                player.playerMovement.strength = data.playerMovement.strength;
-                player.playerMovement.velocity = data.playerMovement.velocity;
-                player.setPosition(
-                    playerMovementController.calculateNewPosition(
-                        delta,
-                        data.playerMovement.angle,
-                        data.playerMovement.strength,
-                        player.playerMovement.position.x,
-                        player.playerMovement.position.y,
-                        data.playerMovement.velocity,
-                    )
+        if (player) {
+            player.playerMovement.angle = playerMovementInputsState.angle;
+            player.playerMovement.strength = playerMovementInputsState.strength;
+            player.setPosition(
+                playerMovementController.calculateNewPosition(
+                    delta,
+                    playerMovementInputsState.angle,
+                    playerMovementInputsState.strength,
+                    player.playerMovement.position.x,
+                    player.playerMovement.position.y,
+                    player.playerMovement.velocity,
+                )
+            );
+            player.playerAim.angle = playerAimInputsState.angle;
+            player.playerAim.strength = playerAimInputsState.strength;
+            player.playerGunPointer.position.x = playerGunInputsState.position.x;
+            player.playerGunPointer.position.y = playerGunInputsState.position.y;
+
+            // For a while, if the player request two shoots together, but the player cannot shoot it
+            // I'm going to cancel the last one, I'm going to get only the first bullet
+            // TODO: later I wanna to schedule the shoots, or if it is a problem, I'm going to check
+            //       if the player can shoot using the TICK and time, it means that, if the first
+            //       shoot was trigger at the tick 1 and the second one was the tick 3, and I have
+            //       to wait a time X that is, for convenience, the same as the 1 tick, then I'll shoot again
+            //       cause the first was at the tick 1, and at the tick 2 I'll skip and at the tick 3, the time
+            //       has passed and I can shoot again.
+            if (payload.bulletInputsState.length > 0) {
+                console.log("Try to shoot");
+            }
+            if (playerGunInputsState && payload.bulletInputsState.length > 0 && player.canShoot()) {
+                console.log("shooting");
+                const localBullet = payload.bulletInputsState[0]
+                const bullet = new Bullet(
+                    localBullet.bulletId,
+                    localBullet.ownerId,
+                    new Position(
+                        playerGunInputsState.position.x,
+                        playerGunInputsState.position.y,
+                    ),
+                    playerGunInputsState.angle,
+                    500.0, // CREATE A CONST
+                    1000.0, // CREATE A CONST
                 );
-                player.playerAim.angle = data.playerAim.angle;
-                player.playerAim.strength = data.playerAim.strength;
-                player.playerGunPointer.position.x = data.playerGunPointer.position.x;
-                player.playerGunPointer.position.y = data.playerGunPointer.position.y;
 
-                /*
-                First the payload must be a BULLET/SHOOT payload
-
-                I need to verify if this player can shoot, to do so I'll need to get the last
-                time that him shoot and compare with the current time
-                
-                BUT I'm gonna have a few problems, one of them is: is it trustable? 
-                - If there are two shoot requests I cannot simply remove it from the process list
-                  I'll need to schedule a new shoot to try it again, since the player must have 
-                  had schedule two shoots and he is waiting for it.
-                
-                  BUT!! I'll at first treat one a one.
-                */
-                if (data.playerGunPointer && player.canShoot()) {
-                    // console.log(JSON.stringify(data.playerGunPointer));
-                    // start a new shoot
-                    const bullet = new Bullet(
-                        data.id + Date.now(),
-                        data.id,
-                        new Position(
-                            data.playerGunPointer.position.x,
-                            data.playerGunPointer.position.y,
-                        ),
-                        data.playerGunPointer.angle,
-                        500.0, // CREATE A CONST
-                        1000.0, // CREATE A CONST
-                    );
-
-                    this.getBullets().push(bullet);
-                }
+                this.getBullets().push(bullet);
             }
         }
-
-        // console.log("Bullets count=" + this.getBullets().length);
-
-        // for (var i = 0; i < this.getBullets().length; i++) {
-        //     const bullet = this.getBullets()[i];
-        //     if (bullet.isMoving()) {
-        //         // console.log("Moving bullet");
-        //         playerShootingController.calculateNewBulletPosition(bullet, delta);
-        //     } else {
-        //         // console.log("Removing bullet");
-        //         this.getBullets().splice(i, 1);
-        //     }
-        // }
 
         const packgeState = {
             tick: currentTick,
             players: this.getConnectedPlayers(),
             bullets: this.getBullets(),
         }
+
+        // if (this.getBullets().length > 0)
+        //     console.log(this.getBullets())
 
         return packgeState;
     }
@@ -213,6 +212,7 @@ class MatchController {
      */
     onPlayerUpdated(id, payload) {
         const data = JSON.parse(payload);
+        // console.log(data)
         this.server_input_msgs.enqueue(data);
     }
 

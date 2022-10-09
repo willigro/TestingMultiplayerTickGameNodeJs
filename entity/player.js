@@ -21,7 +21,7 @@ class Player {
         if (this.playerAim.strength < 80.0) return false;
 
         const now = new Date().getTime();
-        const diff = (now - this.lastShot) / 1000 > 2;
+        const diff = (now - this.lastShot) > 500;
         if (diff) {
             this.lastShot = now;
         }
