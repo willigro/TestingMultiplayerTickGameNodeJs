@@ -1,13 +1,21 @@
 class Queue {
-    constructor() {
+    constructor(maxSize) {
         this.elements = {};
         this.head = 0;
         this.tail = 0;
+        this.maxSize = maxSize;
     }
     first() {
         return this.elements[this.head];
     }
     enqueue(element) {
+        if (this.maxSize) {
+            if (this.length >= this.maxSize) {
+                // Remove the first item in order of create a new space for the new item
+                this.dequeue();
+            }
+        }
+
         this.elements[this.tail] = element;
         this.tail++;
     }

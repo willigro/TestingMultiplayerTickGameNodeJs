@@ -2,7 +2,7 @@ const { Position } = require('../entity/position.js');
 
 class PlayerMovementController {
 
-    calculateNewPosition(deltaTime, angle, strength, x, y, velocity) {
+    calculateNewPosition(tick, deltaTime, angle, strength, x, y, velocity) {
         var cos = Math.cos(angle * Math.PI / 180.0) * strength
         var sin = -Math.sin(angle * Math.PI / 180.0) * strength
 
@@ -16,14 +16,16 @@ class PlayerMovementController {
         const newY = y + (position.y * velocity) * deltaTime;
 
         // console.log(
-        //     "Normalized " + JSON.stringify(position) +
+        //     "Tick " + tick +
+        //     " Normalized " + JSON.stringify(position) +
         //     " Delta " + deltaTime +
         //     " Cos " + cos +
         //     " Sin " + sin +
         //     " Angle " + angle +
         //     " Strength " + strength +
         //     " Velocity " + velocity +
-        //     " New X " + newX
+        //     " New X " + newX +
+        //     " New Y " + newY
         // );
 
         return new Position(newX, newY);

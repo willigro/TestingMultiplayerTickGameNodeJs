@@ -15,6 +15,7 @@ const EMIT_NEW_PLAYER_CONNECTED = "new player connected"
 const EMIT_PLAYER_CREATED = "player created"
 const EMIT_PLAYER_DISCONNECTED = "player disconnected"
 const EMIT_WORLD_STATE = "world state"
+const EMIT_GAME_STARTED = "on game started"
 
 /*
  * Controllers
@@ -46,13 +47,17 @@ const matchController = new MatchController();
 server.listen(port, function() {
     console.log('Server listening at port %d', port);
 });
-
+// io.sockets.on('connection', function(socket) {
+//     console.log("conneceted " + socket.id);
+// })
 io.on(ON_CONNECTION, function(socket) {
 
     console.log("ON CONNECTION, " + socket.id);
     // console.log(socket.conn.server.clientsCount);
     // console.log(socket.server.engine.clientsCount);
     matchController.updateWorldState = function(response) {
+
+        // sleep(200);
         emitToAll(io, EMIT_WORLD_STATE, response);
     }
 
@@ -64,7 +69,11 @@ io.on(ON_CONNECTION, function(socket) {
 
     setupListeners(socket);
 
-    matchController.initGame();
+    if (matchController.getConnectedPlayers().length == 2) {
+        emitToAll(io, EMIT_GAME_STARTED, { tick: matchController.server_tick_number });
+        sleep(1000);
+        matchController.initGame();
+    }
 });
 
 function setupListeners(socket) {
@@ -99,7 +108,7 @@ function onPlayerUpdate(socket) {
 function onPlayerShooting(socket) {
     socket.on(ON_PLAYER_SHOOTING, function(payload) {
         // THIS ID MUST COME FROM THE APP
-        matchController.onPlayerShooting(payload)
+        // matchController.onPlayerShooting(payload)
     });
 }
 
