@@ -10,6 +10,7 @@ const ON_CONNECTION = "connection"
 const ON_DISCONNECT = "disconnect"
 const ON_PLAYER_UPDATE = "player update"
 const ON_PLAYER_SHOOTING = "player shooting"
+const ON_GAME_MUST_STOP = "game must stop"
 
 const EMIT_NEW_PLAYER_CONNECTED = "new player connected"
 const EMIT_PLAYER_CREATED = "player created"
@@ -80,6 +81,9 @@ function setupListeners(socket) {
     onPlayerDisconnected(socket);
     onPlayerUpdate(socket);
     onPlayerShooting(socket);
+
+
+    onGameMustStop(socket);
 }
 
 function emitToAll(emiter, tag, payload) {
@@ -109,6 +113,12 @@ function onPlayerShooting(socket) {
     socket.on(ON_PLAYER_SHOOTING, function(payload) {
         // THIS ID MUST COME FROM THE APP
         // matchController.onPlayerShooting(payload)
+    });
+}
+
+function onGameMustStop(socket) {
+    socket.on(ON_GAME_MUST_STOP, function(payload) {
+        matchController.onGameMustStop()
     });
 }
 
