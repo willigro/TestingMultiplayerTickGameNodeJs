@@ -1,3 +1,6 @@
+/**
+ * Dependencies
+ */
 const { Player } = require('../entity/player.js');
 const { PlayerAim } = require('../entity/player_aim.js');
 const { Position } = require('../entity/position.js');
@@ -8,72 +11,97 @@ const { PlayerGunPointer } = require('../entity/player_gun_pointer.js');
 const { PlayerMovement } = require('../entity/player_movement.js');
 const { PlayerMovementController } = require('./player_movement_controller.js');
 const { PlayerShootingController } = require('./player_shooting_controller.js');
-
 const fs = require('fs');
+
+/**
+ * Controllers
+ */
+const playerMovementController = new PlayerMovementController(function log(value) {
+    applog(value);
+});
+const playerShootingController = new PlayerShootingController();
 
 /**
  * Coneected players
  */
 var connectedPlayers = [];
 
+/**
+ * Bullets
+ */
 var bullets = [];
 
-const playerMovementController = new PlayerMovementController(function log(value) {
-    applog(value);
-});
-const playerShootingController = new PlayerShootingController();
-
+/**
+ * FPS variables
+ */
 const FPS = 5;
 const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
-
-// TODO move it
-const PLAYER_VELOCITY = 300.0
-
-// KEEP IT EQUALS TO THE APP
-const SERVER_TICK_RATE = 4;
-const COUNT_TO_SEND = 5;
-var timer = 0;
-var minTimeBetweenTicks = 1 / SERVER_TICK_RATE;
-var countToSend = 2;
-
 var deltaTime = 0.0;
 
+/**
+ * Response packages variables
+ */
+// Amount of ticks processed necessary to send the package
+const COUNT_TO_SEND = 5;
+
+// count of ticks processed to send the package
+var countToSend = 0;
+
+/**
+ * Buffer and memory
+ */
+// Amount of data that will be cached
 const BUFFER_SIZE = 60; // calculate a size using the fps and count to send, I mean, I can calculate it as "2 seconds = FPS * 2" (only an example)
 
+/**
+ * Log
+ */
 var loggerList = "";
 var loggerListInputs = "";
+
+/**
+ * REMOVE IT EVENTUALLY
+ */
+// TODO move it
+const PLAYER_VELOCITY = 300.0
 
 class MatchController {
 
     constructor(updateWorldState) {
+        // Game loop interval
         this.intervalGameLoop = null;
+
+        // Callback that will be used to send the package containing the world data to the clients
         this.updateWorldState = updateWorldState;
 
+        // Values used to controll the delta
         this.now = Date.now();
         this.lastUpdate = Date.now();
 
+        // Initialize the server variable
         this.initServerValues();
     }
 
     initServerValues() {
         applog("\ninitServerValues");
-        // server specific
-        this.server_snapshot_rate = 0;
+
+        // Ticks processed
         this.server_tick_number = 0;
-        this.server_tick_accumulator = 0;
-        this.server_input_msgs = new Queue();
-        // this.server_responses_queue = new Queue();
-        this.server_responses_map = new Map();
+
+        // Current inputs sent by the client
         this.client_inputs_map_current = new HashMapList();
 
-        // this.inputs_buffer_map_old = new HashMapList(BUFFER_SIZE);
-        this.inputs_buffer_map_old = new Array(BUFFER_SIZE);
-        this.inputs_buffer_map_old_secondary = new Array(BUFFER_SIZE);
-        // this.simulations_buffer_map_old = new Queue(BUFFER_SIZE);
+        // Inputs already processed
+        this.inputs_loaded_buffer = new Array(BUFFER_SIZE);
+
+        // Simulation processed, the PRE will keep the step before the process and the POST will keep the result (PRE + Inputs)
         this.simulations_buffer_map_pre_running = new Array(BUFFER_SIZE);
         this.simulations_buffer_map_pos_running = new Array(BUFFER_SIZE);
+
+        // It will storage the package of data to sent containing the world state
         this.world_state_response = [];
 
+        // Controlls when stop the game (usefull for test)
         this.stopOnTick = -1;
     }
 
@@ -84,9 +112,13 @@ class MatchController {
 
     initGameLoop() {
         this.intervalGameLoop = setInterval(function() {
+            // Calculate the delta time
             this.tickDeltaTime();
+
+            // Update the game
             this.handleTick();
 
+            // TODO: move it
             for (var i = 0; i < this.getBullets().length; i++) {
                 const bullet = this.getBullets()[i];
                 if (bullet.isMoving(deltaTime)) {
@@ -98,17 +130,17 @@ class MatchController {
                 }
             }
 
-            // applog("\ncountToSend=" + countToSend + " COUNT_TO_SEND=" + COUNT_TO_SEND + " this.world_state_response.length=" + this.world_state_response.length);
-            timer += deltaTime;
+            // When this conditional is sastified than the package will be sent
             if (countToSend >= COUNT_TO_SEND) {
-                timer = 0;
+                // Reset the count
                 countToSend = 0;
 
+                // Check if there is data to be sent
                 if (this.world_state_response.length > 0) {
                     // Sort the response by tick
                     this.world_state_response.sort((a, b) => a.tick - b.tick);
-                    // applog("\nReponse=" + JSON.stringify(this.world_state_response));
 
+                    // Logs
                     applog("\nsendint at tick=" + this.server_tick_number); // + " value=" + JSON.stringify(this.world_state_response)
                     for (let i in this.world_state_response) {
                         applog("\ntick=" + this.world_state_response[i].tick + " value=" + JSON.stringify(this.world_state_response[i]));
@@ -121,104 +153,78 @@ class MatchController {
                     this.world_state_response = [];
                 }
             }
+
+            // Update the count, I'm going to update it every tick
             countToSend++;
-
-
-            if (this.server_tick_number == 10) {
-                clearImmediate(this.intervalGameLoop);
-            }
         }.bind(this), MAX_FPS_DELAY);
     }
 
-    /* 
-    Here we go again
-    
-    - As the inputs will be together in the same list, I'm going to run through all items (ticks)
-    - Get the inputs of the current tick (usually 2 or 1 (often 2))
-    - Check if the the tick is smaller than the server tick, if it is
-        - yes -> do the replay, rewind
-            - Replay -
-            - Rewind ->
-        - no -> keep going normal
-    - Save the current world state to do the replay/rewind later
-    - Process the world with both the inputs (often 2)
-    - Register the inputs as an old, but in a different list (I don't want to change the handleTick() because I'll use as reference even it wasn't working)
-    - Register the results to send
-    */
     handleTick() {
         // Run throught all new received inputs and get their keys, using 
         for (var k in this.client_inputs_map_current.keys) {
 
+            // It will stop the game and save the log file
             if (this.stopOnTick != -1 && this.server_tick_number >= this.stopOnTick) {
                 clearInterval(this.intervalGameLoop);
                 saveFile();
             }
 
-            // Get the current key, the keys are the TICK
-            const key = this.client_inputs_map_current.keys[k];
-            applog("\nCurrent tick=" + this.server_tick_number + " handling key=" + key);
+            // Get the current tick (the keys are the ticks)
+            const inputsTick = this.client_inputs_map_current.keys[k];
+            applog("\nCurrent tick=" + this.server_tick_number + " handling tick=" + inputsTick);
 
-            // Get the message/inputs referent to the current key/tick
-            const inputs = this.client_inputs_map_current.get(key);
-            applog("\nInputs to this key size=" + inputs.length);
+            // Get the message/inputs referent to the current tick
+            const inputs = this.client_inputs_map_current.get(inputsTick);
+            applog("\nInputs to this tick size=" + inputs.length);
 
-            // Get the tick of the inputs
-            const inputsTick = key;
-            applog("\nCurrent tick to handle=" + inputsTick);
-
-            // Get the buffer referent to the input's tick, if the buffer_size is 10 and the tick is 
-            // 11, the result will be 1
+            // Calculate the current buffer
             const buffer = inputsTick % BUFFER_SIZE;
-            applog2("\nhandle tick buffer=" + buffer + " inputs=" + JSON.stringify(inputs));
+            applog("\nhandle tick buffer=" + buffer + " inputs=" + JSON.stringify(inputs));
 
+            // Case the current tick is smaller than the server tick, then do the REPLAY and if necessary the REWIND
             if (inputsTick < this.server_tick_number) {
                 applog("\nMust do the replay/rewind")
 
-                // Get the old world state referent to the current tick to do the replay, for sure I need the pre loaded world
+                // Get the old world state referent to the current tick to do the replay
                 const oldWorldStateToReplay = this.simulations_buffer_map_pre_running[buffer];
 
                 // Check if the world state is valid and compatible with the current tick
                 if (oldWorldStateToReplay && oldWorldStateToReplay.tick == inputsTick) {
-                    applog2("\nThe tick (inputsTick)=" + inputsTick + " have the following world state to do the replay=" + JSON.stringify(oldWorldStateToReplay));
+                    applog("\nThe tick (inputsTick)=" + inputsTick + " have the following world state to do the replay=" + JSON.stringify(oldWorldStateToReplay));
 
+                    // Extract the current input, it will join the all processed inputs from the current tick
                     const inputsToReplay = this.extractInputs(inputs, buffer);
 
-                    // Make a copy of this state to not change this values through reference
+                    // Make a copy of this state
                     const oldWorldStateToReplayCopy = this.copyWorldState(oldWorldStateToReplay);
 
                     for (let p in connectedPlayers) {
-                        applog2("\ntick (inputsTick)=" + inputsTick + " Old position before replay=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
+                        applog("\ntick (inputsTick)=" + inputsTick + " Old position before replay=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
                     }
 
-                    // Process the current inputs
+                    // Process the current inputs generating a new world state
                     const replayedWorldState = this.processMultipleInputs(inputsToReplay, oldWorldStateToReplayCopy, deltaTime, "replay");
 
+                    // Check if the generated world is valid
                     if (this.isWorldStateValid(replayedWorldState)) {
-                        // Update the world
-                        // I'm going to do that because the updates must affect the current world and the replay and rewind must go
-                        // until the current world state
 
-                        this.setConnectedPlayer(this.copyPlayers(replayedWorldState.players), replayedWorldState.tick);
+                        // Update the current world state
+                        this.setConnectedPlayer(replayedWorldState.players, replayedWorldState.tick);
                         this.setBullets(replayedWorldState.bullets);
 
                         for (let p in connectedPlayers) {
-                            applog2("\ntick (replayedWorldState)=" + replayedWorldState.tick + " New position (connectedPlayers) after replay=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
+                            applog("\ntick (replayedWorldState)=" + replayedWorldState.tick + " New position (connectedPlayers) after replay=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
                         }
 
-                        // Update the next old world state, since it is the new state of it
-                        // Increase the tick to storage at the next buffer
-                        // replayedWorldState.tick++;
-                        const nBuffer = replayedWorldState.tick % BUFFER_SIZE;
-                        this.simulations_buffer_map_pos_running[nBuffer] = replayedWorldState;
+                        // Save the processed world state
+                        this.simulations_buffer_map_pos_running[buffer] = replayedWorldState;
 
                         applog("\nReplayed world state=" + JSON.stringify(replayedWorldState));
 
                         // Save the world to be sent
-                        // I'm going to run throught the inputs without extraction because I wanna to send only 
-                        // The world referent to the main input (the extract is join the inputs of the same tick)
-                        // The app will calculate with the result of result of the tick, but using the POST list, same tick, but the result
+                        // I'm going to run throught the inputs without extraction because I wanna send only 
+                        // the world referent to the current input
                         const worldToSend = this.copyWorldState(replayedWorldState);
-                        // worldToSend.tick -= 1;
                         // Save the world to be sent
                         for (var i in inputsToReplay) {
                             this.saveTheUpdatedWorldStateToSent(worldToSend, inputsToReplay[i]);
@@ -227,23 +233,6 @@ class MatchController {
                         applog("\nWorld state is not valid (replay), tick=" + inputsTick);
                         break;
                     }
-
-                    /*
-                     Now I need to do the rewind from the the next buffer/tick until the current buffer/tick on server
-                     
-                     This is an example of the sequence of inputs, it went until 470 in sequence. 
-                     From this I can say that the rewind could not be useful, but what if the current tick is 470 and I don't 
-                     have the inputs to the 470, I could not do the rewind and something could goes wrong, so I'm going to 
-                     force the rewind to test the result
-
-                     Current tick=470 handling key=467
-                     Inputs to this key size=1
-                     Must do the replay/rewind
-
-                     Current tick=470 handling key=468
-                     Inputs to this key size=1
-                     Must do the replay/rewind
-                    */
 
                     // Start from the next tick
                     var tickToRewind = replayedWorldState.tick + 1;
@@ -257,25 +246,13 @@ class MatchController {
                         applog("\nBuffer to rewind=" + bufferToRewind);
 
                         // Get the inputs to rewind
-                        const inputsToRewind = this.inputs_buffer_map_old_secondary[bufferToRewind];
+                        const inputsToRewind = this.inputs_loaded_buffer[bufferToRewind];
                         applog("\nInputs to do the rewind=" + JSON.stringify(inputsToRewind));
 
-                        // Check if the inputs is valid and compatible
+                        // Check if the inputs are valid and compatibles
                         if (!inputsToRewind || inputsToRewind.length == 0 || inputsToRewind[0].tick != tickToRewind) {
                             applog("\nWas not found a input to rewind the tick=" + tickToRewind);
                             break;
-                            // // Try to get an input on the list of new inputs, cause it can do the replay even before
-                            // // of this input be saved
-                            // inputsToRewind = this.client_inputs_map_current.get(tickToRewind);
-
-                            // // Check if the inputs is valid and compatible
-                            // if (!inputsToRewind || inputsToRewind.length == 0 || inputsToRewind[0].tick != tickToRewind) {
-
-                            //     applog("\nTried to find a input on the list of new inputs but was not found a input to rewind the tick=" + tickToRewind);
-                            //     break;
-                            // }
-
-                            // applog("\nIt was found a input to this tick=" + tickToRewind);
                         }
 
                         // Since I'm going to rewind the world, I need to get the current world state, because the replay
@@ -285,52 +262,42 @@ class MatchController {
                             players: this.getConnectedPlayers(),
                             bullets: this.getBullets(),
                         };
-                        // const oldWorldStateToRewind = this.simulations_buffer_map_pre_running[bufferToRewind];
+
                         applog("\nWorld state to do the rewind=" + JSON.stringify(oldWorldStateToRewind));
 
-                        if (!oldWorldStateToRewind || oldWorldStateToRewind.tick != tickToRewind) {
-                            applog("\nWas not found a world state to rewind the tick=" + tickToRewind);
-                            break;
-                        }
-
-                        // Again, I don't want to change any value throught reference
+                        // Copy the world state
                         const oldWorldStateToRewindCopy = this.copyWorldState(oldWorldStateToRewind);
-
-                        // // I don't know why but the tick was not being set
-                        // oldWorldStateToRewindCopy.tick = tickToRewind;
 
                         // Update the pre loaded world state with the current world state
                         applog("\nSaving simulation (rewind) on the buffer=" + bufferToRewind + " the tick=" + oldWorldStateToRewindCopy.tick + " world=" + JSON.stringify(oldWorldStateToRewindCopy));
                         this.simulations_buffer_map_pre_running[bufferToRewind] = this.copyWorldState(oldWorldStateToRewindCopy);
 
                         for (let p in connectedPlayers) {
-                            applog2("\ntick (oldWorldStateToRewindCopy)=" + oldWorldStateToRewindCopy.tick + " Old position before rewind=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
+                            applog("\ntick (oldWorldStateToRewindCopy)=" + oldWorldStateToRewindCopy.tick + " Old position before rewind=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
                         }
 
                         // Process the inputs
                         const rewindedWorldState = this.processMultipleInputs(inputsToRewind, oldWorldStateToRewindCopy, deltaTime, "rewind");
 
+                        // Check if the result is valid
                         if (this.isWorldStateValid(rewindedWorldState)) {
-                            // Update the world
-                            // I'm going to do that because the updates must affect the current world and the replay and rewind must go
-                            // until the current world state
-                            this.setConnectedPlayer(this.copyPlayers(rewindedWorldState.players));
+
+                            // Update the world                        
+                            this.setConnectedPlayer(rewindedWorldState.players);
                             this.setBullets(rewindedWorldState.bullets);
 
                             for (let p in connectedPlayers) {
-                                applog2("\ntick (rewindedWorldState)=" + rewindedWorldState.tick + " New position after rewind=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
+                                applog("\ntick (rewindedWorldState)=" + rewindedWorldState.tick + " New position after rewind=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
                             }
-                            // Update the next old world state, since it is the new state of it
-                            // Increase the tick to storage at the next buffer
-                            // rewindedWorldState.tick++;
-                            const nBuffer = rewindedWorldState.tick % BUFFER_SIZE;
-                            this.simulations_buffer_map_pos_running[nBuffer] = rewindedWorldState;
+
+                            // Update the buffer with the new world state
+                            this.simulations_buffer_map_pos_running[bufferToRewind] = rewindedWorldState;
 
                             applog("\nRewinded world state=" + JSON.stringify(rewindedWorldState));
 
-                            // The app will calculate with the result of result of the tick, but using the POST list, same tick, but the result
+                            // Copy the result
                             const worldToSend = this.copyWorldState(rewindedWorldState);
-                            // worldToSend.tick -= 1;
+
                             // Save the world to be sent
                             for (var i in inputsToRewind) {
                                 this.saveTheUpdatedWorldStateToSent(worldToSend, inputsToRewind[i]);
@@ -350,12 +317,10 @@ class MatchController {
                         if (this.simulations_buffer_map_pre_running[old])
                             applog("Simulation=" + old + " " + JSON.stringify(this.simulations_buffer_map_pre_running[old]));
                     }
-
-
                 }
             } else {
                 // Save the inputs used, this way I can use these inputs to do the replay and rewind later
-                this.inputs_buffer_map_old_secondary[buffer] = this.copyInputs(inputs);
+                this.inputs_loaded_buffer[buffer] = this.copyInputs(inputs);
 
                 // Create the current world state to save it
                 const worldState = {
@@ -369,23 +334,29 @@ class MatchController {
 
                 applog("\nCurrent world state on tick=" + this.server_tick_number + " and buffer=" + buffer + " (normal)=" + JSON.stringify(copyWorldState));
 
-                // Save the world state, this way I can use different inputs in this state and generate new worlds
+                // Save the current world state
                 this.simulations_buffer_map_pre_running[buffer] = copyWorldState;
+
                 applog("\nSaving simulation (normal) on the buffer=" + buffer + " the tick=" + copyWorldState.tick);
 
                 for (let p in connectedPlayers) {
                     applog("\ntick (normal)=" + this.server_tick_number + " Old position before normal=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
                 }
+
                 // Process the current inputs
                 const newWorldState = this.processMultipleInputs(inputs, this.copyWorldState(copyWorldState), deltaTime, "normal");
 
+                // Save the new world state
                 this.simulations_buffer_map_pos_running[buffer] = newWorldState;
 
+                // Check if the result is valid
                 if (this.isWorldStateValid(newWorldState)) {
-                    // Update the world with the new values, copying that to guarantee the reference safety
-                    this.setConnectedPlayer(this.copyPlayers(newWorldState.players));
+
+                    // Update the world with the new values
+                    this.setConnectedPlayer(newWorldState.players);
                     this.setBullets(newWorldState.bullets);
 
+                    // Log
                     this.printWorldStatePositions(newWorldState, "normal")
 
                     // Save the world to be sent
@@ -393,6 +364,7 @@ class MatchController {
                         this.saveTheUpdatedWorldStateToSent(newWorldState, inputs[i]);
                     }
 
+                    // Update the tick number
                     this.server_tick_number++;
                     applog("\nNew tick=" + this.server_tick_number);
                 } else {
@@ -406,7 +378,7 @@ class MatchController {
 
     extractInputs(inputs, buffer) {
         // applog("\nBuffer=" + buffer + " Input previous=" + JSON.stringify(inputs));
-        const oldInputs = this.inputs_buffer_map_old_secondary[buffer];
+        const oldInputs = this.inputs_loaded_buffer[buffer];
 
         const inputsToProcess = [];
 
@@ -546,85 +518,6 @@ class MatchController {
         return false;
     }
 
-    processInputs(inputs, worldState, delta) {
-        applog("\nprocessInputs=" + JSON.stringify(inputs));
-        if (!inputs) return;
-
-        const playerIndex = worldState.players.findIndex(player => player.id == inputs.playerId);
-        const player = worldState.players[playerIndex];
-
-        applog("\nplayer to process=" + JSON.stringify(player));
-
-        if (player) {
-            const playerMovementInputsState = inputs.playerInputsState.playerMovementInputsState;
-            const playerAimInputsState = inputs.playerInputsState.playerAimInputsState;
-            const playerGunInputsState = inputs.playerInputsState.playerGunInputsState;
-
-            player.playerMovement.angle = playerMovementInputsState.angle;
-            player.playerMovement.strength = playerMovementInputsState.strength;
-            player.setPosition(
-                playerMovementController.calculateNewPosition(
-                    player.id,
-                    "from",
-                    this.server_tick_number,
-                    delta,
-                    playerMovementInputsState.angle,
-                    playerMovementInputsState.strength,
-                    player.playerMovement.position.x,
-                    player.playerMovement.position.y,
-                    player.playerMovement.velocity,
-                )
-            );
-            player.playerAim.angle = playerAimInputsState.angle;
-            player.playerAim.strength = playerAimInputsState.strength;
-            player.playerGunPointer.position.x = playerGunInputsState.position.x;
-            player.playerGunPointer.position.y = playerGunInputsState.position.y;
-
-            // For a while, if the player request two shoots together, but the player cannot shoot it
-            // I'm going to cancel the last one, I'm going to get only the first bullet
-            // TODO: later I wanna to schedule the shoots, or if it is a problem, I'm going to check
-            //       if the player can shoot using the TICK and time, it means that, if the first
-            //       shoot was trigger at the tick 1 and the second one was the tick 3, and I have
-            //       to wait a time X that is, for convenience, the same as the 1 tick, then I'll shoot again
-            //       cause the first was at the tick 1, and at the tick 2 I'll skip and at the tick 3, the time
-            //       has passed and I can shoot again.
-            // if (worldState.bulletInputsState.length > 0) {
-            //     applog("\nTry to shoot");
-            // }
-            if (playerGunInputsState && inputs.bulletInputsState.length > 0 && player.canShoot()) {
-                // applog("\nshooting");
-                const localBullet = inputs.bulletInputsState[0]
-                const bullet = new Bullet(
-                    localBullet.bulletId,
-                    localBullet.ownerId,
-                    new Position(
-                        playerGunInputsState.position.x,
-                        playerGunInputsState.position.y,
-                    ),
-                    playerGunInputsState.angle,
-                    500.0, // CREATE A CONST
-                    1000.0, // CREATE A CONST
-                );
-
-                this.getBullets().push(bullet);
-            }
-
-            // Update world state with the updated values
-            worldState.players[playerIndex] = player;
-        }
-
-        const packgeState = {
-            tick: worldState.tick,
-            players: worldState.players,
-            bullets: worldState.bullets,
-        }
-
-        // if (this.getBullets().length > 0)
-        //     applog(this.getBullets())
-
-        return packgeState;
-    }
-
     processMultipleInputs(inputList, worldState, delta, from, tick) {
         this.printWorldStatePositions(worldState, "processMultipleInputs");
 
@@ -632,7 +525,7 @@ class MatchController {
 
         for (let index in inputList) {
             const payload = inputList[index];
-            applog2("\ntick (payload)= " + tick + " payload to process in multiple=" + JSON.stringify(payload));
+            applog("\ntick (payload)= " + tick + " payload to process in multiple=" + JSON.stringify(payload));
 
             const playerIndex = worldState.players.findIndex(player => player.id == payload.playerId);
             const player = worldState.players[playerIndex];
@@ -724,21 +617,17 @@ class MatchController {
      */
     onPlayerUpdated(id, payload) {
         applogInputs(JSON.stringify(payload));
-        // applog("\nonPlayerUpdated this.server_tick_number=" + this.server_tick_number);
         applog("\nid=" + id + " server tick=" + this.server_tick_number + " payload=" + payload);
         applog("\npayload=" + payload);
+
         const data = JSON.parse(payload);
-        // this.server_input_msgs.enqueue(data);
+
         // TODO: if the hashmap works, I'll send them instead of create it here
         applog("\ndata.start_tick_number=" + data.start_tick_number);
         for (var i in data.inputs) {
             // applog(data.inputs[i]);
             this.client_inputs_map_current.put(data.inputs[i].tick, data.inputs[i]);
             applog("\ntick=" + data.inputs[i].tick + " player=" + data.inputs[i].playerId + " inputs=" + JSON.stringify(data.inputs[i].playerInputsState));
-            // this.inputs_buffer_map_old.put(data.inputs[i].tick, data.inputs[i])
-
-            // this.registerOldInputs(data.inputs[i]);
-            // this.inputs_buffer_map_old.put(data.inputs[i].tick, data.inputs[i])
         }
 
         this.client_inputs_map_current.keys.sort((a, b) => a - b);
@@ -747,54 +636,6 @@ class MatchController {
 
         // applog("\nonPlayerUpdated");
         // this.inputs_buffer.print();
-    }
-
-    registerOldInputs(payload) {
-        // Get the current buffer, when tick is 10 and BUFFER is 10, the result will be 0, 11 -> 1, 12 -> 2
-        const buffer = payload.tick % BUFFER_SIZE;
-        applog("\nregisterOldInputs buffer=" + buffer, "input to register=" + JSON.stringify(payload));
-
-        // Get the elements saved
-        const elements = this.inputs_buffer_map_old[buffer];
-
-        applog("\nelements on buffer=" + JSON.stringify(elements));
-
-        // Check if the there is elements 
-        if (elements && elements.length > 0 && elements[0].tick == payload.tick) {
-
-            applog("\nsame tick=" + payload.tick);
-
-            // Check if one of the elements/inputs is from the same player
-            // If it is, I'll replace the old value with the new one
-            var found = false;
-            for (let i in elements) {
-                applog("\nelement=" + elements[i].playerId);
-                if (elements[i].playerId == payload.playerId) {
-                    elements[i] = payload;
-                    found = true;
-                    applog("\nThis player already was saved, so replace the value instead of push");
-                    break;
-                }
-            }
-
-            // If the player wasn't found, push the payload
-            if (!found) {
-                applog("\nPushing payload");
-                elements.push(payload);
-            }
-
-            // Save the new elements
-            this.inputs_buffer_map_old[buffer] = elements;
-            applog("\nelements.inputs.length=" + elements.length + " value=" + JSON.stringify(this.inputs_buffer_map_old[buffer]));
-        } else {
-            // Create a new element with the payload
-            applog("\nCreating a new buffer at tick=" + payload.tick);
-            const newElements = [payload];
-
-            // Save the element
-            this.inputs_buffer_map_old[buffer] = newElements;
-            applog("\nelements.inputs.length=" + newElements.length + " value=" + JSON.stringify(this.inputs_buffer_map_old[buffer]));
-        }
     }
 
     onPlayerShooting(payload) {
@@ -830,9 +671,9 @@ class MatchController {
 
     setConnectedPlayer(players, tick) {
         for (let p in players) {
-            applog2("\n- Setting on tick=" + tick + " the players= " + players[p].id + " " + JSON.stringify(players[p].playerMovement));
+            applog("\n- Setting on tick=" + tick + " the players= " + players[p].id + " " + JSON.stringify(players[p].playerMovement));
         }
-        connectedPlayers = players;
+        connectedPlayers = this.copyPlayers(players);
     }
 
     getBullets() {
@@ -924,7 +765,6 @@ class MatchController {
             clearInterval(this.intervalGameLoop);
         }
 
-        // + " players " + JSON.stringify(this.getConnectedPlayers())
         applog("\nPlayer Disconnected! id=" + socket.id + " Remove index " + index);
     }
 
@@ -947,12 +787,7 @@ module.exports = {
 };
 
 function applog(value) {
-    // console.log(value);
-    loggerList += "\n" + value;
-}
-
-function applog2(value) {
-    loggerList += "\n" + value;
+    // loggerList += "\n" + value;
 }
 
 function applogInputs(value) {
