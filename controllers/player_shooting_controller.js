@@ -1,6 +1,10 @@
 class PlayerShootingController {
 
-    calculateNewBulletPosition(bullet, deltaTime) {
+    constructor(logger) {
+        this.logger = logger;
+    }
+
+    calculateNewBulletPosition(bullet, deltaTime, tick, from) {
         var normX = Math.cos(bullet.angle * Math.PI / 180.0);
         var normY = -Math.sin(bullet.angle * Math.PI / 180.0);
 
@@ -17,8 +21,23 @@ class PlayerShootingController {
         var velX = normX * bullet.velocity * deltaTime;
         var velY = normY * bullet.velocity * deltaTime;
 
+        const preX = bullet.position.x;
+        const preY = bullet.position.y;
+
         bullet.position.x = bullet.position.x + velX;
         bullet.position.y = bullet.position.y + velY;
+
+        this.logger(
+            "\nTick " + tick +
+            " From=" + from +
+            " Bullet=" + bullet.id +
+            // " Angle=" + bullet.angle +
+            // " Velocity=" + bullet.velocity +
+            " Pre X=" + preX +
+            " Pre Y=" + preY +
+            " New X=" + bullet.position.x +
+            " New Y=" + bullet.position.y
+        );
     }
 }
 

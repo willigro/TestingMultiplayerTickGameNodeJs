@@ -17,9 +17,9 @@ const fs = require('fs');
  * Controllers
  */
 const playerMovementController = new PlayerMovementController(function log(value) {
-    applog(value);
+    applog2(value);
 });
-const playerShootingController = new PlayerShootingController();
+const playerShootingController = new PlayerShootingController(value => applog2(value));
 
 /**
  * Coneected players
@@ -118,18 +118,6 @@ class MatchController {
             // Update the game
             this.handleTick();
 
-            // TODO: move it
-            for (var i = 0; i < this.getBullets().length; i++) {
-                const bullet = this.getBullets()[i];
-                if (bullet.isMoving(deltaTime)) {
-                    // applog("\nMoving bullet, new size: " + this.getBullets().length);
-                    playerShootingController.calculateNewBulletPosition(bullet, deltaTime);
-                } else {
-                    // applog("\nRemoving bullet, new size: " + this.getBullets().length);
-                    this.getBullets().splice(i, 1);
-                }
-            }
-
             // When this conditional is sastified than the package will be sent
             if (countToSend >= COUNT_TO_SEND) {
                 // Reset the count
@@ -156,6 +144,11 @@ class MatchController {
 
             // Update the count, I'm going to update it every tick
             countToSend++;
+
+
+
+
+            saveFile();
         }.bind(this), MAX_FPS_DELAY);
     }
 
@@ -210,7 +203,7 @@ class MatchController {
 
                         // Update the current world state
                         this.setConnectedPlayer(replayedWorldState.players, replayedWorldState.tick);
-                        this.setBullets(replayedWorldState.bullets);
+                        this.setBullets(replayedWorldState.bullets, "replay at tick=" + replayedWorldState.tick);
 
                         for (let p in connectedPlayers) {
                             applog("\ntick (replayedWorldState)=" + replayedWorldState.tick + " New position (connectedPlayers) after replay=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
@@ -261,6 +254,7 @@ class MatchController {
                             tick: tickToRewind,
                             players: this.getConnectedPlayers(),
                             bullets: this.getBullets(),
+                            bulletsToRemove: [],
                         };
 
                         applog("\nWorld state to do the rewind=" + JSON.stringify(oldWorldStateToRewind));
@@ -284,7 +278,7 @@ class MatchController {
 
                             // Update the world                        
                             this.setConnectedPlayer(rewindedWorldState.players);
-                            this.setBullets(rewindedWorldState.bullets);
+                            this.setBullets(rewindedWorldState.bullets, "rewind at tick=" + rewindedWorldState.tick);
 
                             for (let p in connectedPlayers) {
                                 applog("\ntick (rewindedWorldState)=" + rewindedWorldState.tick + " New position after rewind=" + connectedPlayers[p].id + " " + JSON.stringify(connectedPlayers[p].playerMovement));
@@ -327,6 +321,7 @@ class MatchController {
                     tick: this.server_tick_number,
                     players: this.getConnectedPlayers(),
                     bullets: this.getBullets(),
+                    bulletsToRemove: [],
                 }
 
                 // Copy the values to guarantee that the reference won't be duplicated
@@ -354,7 +349,7 @@ class MatchController {
 
                     // Update the world with the new values
                     this.setConnectedPlayer(newWorldState.players);
-                    this.setBullets(newWorldState.bullets);
+                    this.setBullets(newWorldState.bullets, "normal at tick=" + newWorldState.tick);
 
                     // Log
                     this.printWorldStatePositions(newWorldState, "normal")
@@ -366,14 +361,30 @@ class MatchController {
 
                     // Update the tick number
                     this.server_tick_number++;
-                    applog("\nNew tick=" + this.server_tick_number);
+                    applog2("New tick=" + this.server_tick_number + "\n");
                 } else {
-                    applog("\nWorld state is not valid (normal), tick=" + inputsTick);
+                    applog2("\nWorld state is not valid (normal), tick=" + inputsTick);
                 }
             }
         }
 
         this.client_inputs_map_current.clear();
+    }
+
+    moveBullets(worldState, from) {
+        var log = "\n"
+        for (var i = 0; i < worldState.bullets.length; i++) {
+            const bullet = worldState.bullets[i];
+            log += "\nAt tick=" + worldState.tick + ", the bullet on position=" + i + ", id=" + bullet.id + " is on position=" + JSON.stringify(bullet.position);
+            if (bullet.isMoving(deltaTime)) {
+                playerShootingController.calculateNewBulletPosition(bullet, deltaTime, worldState.tick, from);
+            } else {
+                log += "\nRemoving bullet at position=" + i + " and id=" + bullet.id;
+                worldState.bullets.splice(i, 1);
+                worldState.bulletsToRemove.push(bullet);
+            }
+        }
+        log += "\nRemaining bullets at tick=" + worldState.tick + " " + worldState.bullets.length
     }
 
     extractInputs(inputs, buffer) {
@@ -417,6 +428,26 @@ class MatchController {
         return true;
     }
 
+    copyBullets(bullets) {
+        if (!bullets) return [];
+
+        return bullets.map(a => {
+            const b = new Bullet(
+                a.id,
+                a.owner,
+                new Position(
+                    a.position.x,
+                    a.position.y,
+                ),
+                a.angle,
+                500.0, // CREATE A CONST
+                1000.0, // CREATE A CONST
+            )
+            b.initialPosition = a.initialPosition
+            return b;
+        });
+    }
+
     copyPlayers(players) {
         return players.map(a => (new Player(
             a.id,
@@ -429,6 +460,7 @@ class MatchController {
             a.playerAim, // clone it
             a.playerGunPointer, // clone it
             a.color,
+            a.lastShootTick,
         )));
     }
 
@@ -436,7 +468,8 @@ class MatchController {
         return {
             tick: worldState.tick,
             players: this.copyPlayers(worldState.players),
-            bullets: worldState.bullets, // clone it
+            bullets: this.copyBullets(worldState.bullets),
+            bulletsToRemove: this.copyBullets(worldState.bulletsToRemove),
         }
     }
 
@@ -495,6 +528,7 @@ class MatchController {
                 tick: worldState.tick,
                 players: [player],
                 bullets: worldState.bullets,
+                bulletsToRemove: worldState.bulletsToRemove,
             }
             this.world_state_response.push(worldStateToSend);
 
@@ -522,6 +556,8 @@ class MatchController {
         this.printWorldStatePositions(worldState, "processMultipleInputs");
 
         if (!inputList || !worldState) return;
+
+        worldState.bulletsToRemove = [];
 
         for (let index in inputList) {
             const payload = inputList[index];
@@ -557,46 +593,71 @@ class MatchController {
                 player.playerGunPointer.position.x = playerGunInputsState.position.x;
                 player.playerGunPointer.position.y = playerGunInputsState.position.y;
 
-                // For a while, if the player request two shoots together, but the player cannot shoot it
-                // I'm going to cancel the last one, I'm going to get only the first bullet
-                // TODO: later I wanna to schedule the shoots, or if it is a problem, I'm going to check
-                //       if the player can shoot using the TICK and time, it means that, if the first
-                //       shoot was trigger at the tick 1 and the second one was the tick 3, and I have
-                //       to wait a time X that is, for convenience, the same as the 1 tick, then I'll shoot again
-                //       cause the first was at the tick 1, and at the tick 2 I'll skip and at the tick 3, the time
-                //       has passed and I can shoot again.
-                // if (payload.bulletInputsState.length > 0) {
-                //     applog("\nTry to shoot");
-                // }
-                // if (playerGunInputsState && payload.bulletInputsState.length > 0 && player.canShoot()) {
-                //     // applog("\nshooting");
-                //     const localBullet = payload.bulletInputsState[0]
-                //     const bullet = new Bullet(
-                //         localBullet.bulletId,
-                //         localBullet.ownerId,
-                //         new Position(
-                //             playerGunInputsState.position.x,
-                //             playerGunInputsState.position.y,
-                //         ),
-                //         playerGunInputsState.angle,
-                //         500.0, // CREATE A CONST
-                //         1000.0, // CREATE A CONST
-                //     );
+                // Check if there is data to update the bullet
+                // And if the current player can shoot
+                if (
+                    playerGunInputsState &&
+                    payload.bulletInputsState.length > 0 &&
+                    player.canShoot(worldState.tick)
+                ) {
+                    var log = ""
+                    for (let b in worldState.bullets) {
+                        log += "\nat tick=" + worldState.tick + ", Bullets on world BEFORE process=" + JSON.stringify(worldState.bullets[b]);
+                    }
 
-                //     this.getBullets().push(bullet);
-                // }
+                    log += "\ntick (payload)= " + tick + " payload to process in multiple=" + JSON.stringify(payload);
+                    log += "\nplayer to process in multiple=" + JSON.stringify(player);
+
+                    for (let b in payload.bulletInputsState) {
+                        const clientBullet = payload.bulletInputsState[b];
+
+                        const localBulletIndex = worldState.bullets.findIndex(bullet => bullet.id == clientBullet.bulletId)
+
+                        log += "\nat tick=" + worldState.tick + ", from=" + from + ", created bullet id=" + clientBullet.bulletId;
+
+                        const bullet = new Bullet(
+                            clientBullet.bulletId,
+                            clientBullet.ownerId,
+                            new Position(
+                                playerGunInputsState.position.x,
+                                playerGunInputsState.position.y,
+                            ),
+                            playerGunInputsState.angle,
+                            500.0, // CREATE A CONST
+                            1000.0, // CREATE A CONST
+                        );
+
+                        if (localBulletIndex == -1) {
+                            worldState.bullets.push(bullet);
+                            log += "\nadding the new bullet to the list, result list=" + JSON.stringify(worldState.bullets);
+                        } else {
+                            worldState.bullets[localBulletIndex] = bullet;
+                            log += "\nreplacing the bullet on the list, result list=" + JSON.stringify(worldState.bullets);
+                        }
+
+                        for (let b in worldState.bullets) {
+                            log += "\nat tick=" + worldState.tick + ", Bullets on world AFTER process=" + JSON.stringify(worldState.bullets[b]);
+                        }
+                    }
+
+                    applog2(log);
+                }
 
                 // Update world state with the updated values
                 worldState.players[playerIndex] = player;
             }
         }
 
+        // TODO: move it
+        this.moveBullets(worldState, from);
+
         // I need to copy the values because JS is not immutable and pass the things as ref
         // And I'm copying the result because I don't to change the value of the arguments (reference)
         const packgeState = {
             tick: worldState.tick,
-            players: worldState.players, //this.copyPlayers(),
-            bullets: worldState.bullets, // Update it, I'm updating only the players
+            players: worldState.players,
+            bullets: worldState.bullets,
+            bulletsToRemove: worldState.bulletsToRemove,
         }
 
         return packgeState;
@@ -680,8 +741,9 @@ class MatchController {
         return bullets;
     }
 
-    setBullets(newBullets) {
-        bullets = newBullets;
+    setBullets(newBullets, from) {
+        applog2("Setting bullets from=" + from + ", old.size=" + bullets.length + ", new.size=" + newBullets.length);
+        bullets = this.copyBullets(newBullets);
     }
 
     generateNewPlayer(socket) {
@@ -790,6 +852,11 @@ function applog(value) {
     // loggerList += "\n" + value;
 }
 
+function applog2(value) {
+    loggerList += "\n" + value;
+    // console.log(value)
+}
+
 function applogInputs(value) {
     loggerListInputs += value + "\n";
 }
@@ -803,11 +870,11 @@ function saveFile() {
         console.log("The file was saved!");
     });
 
-    fs.writeFile("D:\\Rittmann\\Projetos\\games\\simple card multiplayer game - server\\server\\log_input.txt", loggerListInputs, function(err) {
-        if (err) {
-            return console.log(err);
-        }
+    // fs.writeFile("D:\\Rittmann\\Projetos\\games\\simple card multiplayer game - server\\server\\log_input.txt", loggerListInputs, function(err) {
+    //     if (err) {
+    //         return console.log(err);
+    //     }
 
-        console.log("The file was saved (input logs)!");
-    });
+    //     console.log("The file was saved (input logs)!");
+    // });
 }

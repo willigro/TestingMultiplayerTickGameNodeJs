@@ -1,12 +1,11 @@
 class Player {
-    constructor(id, playerMovement, playerAim, playerGunPointer, color) {
+    constructor(id, playerMovement, playerAim, playerGunPointer, color, lastShootTick) {
         this.id = id;
         this.playerMovement = playerMovement;
         this.playerAim = playerAim;
         this.playerGunPointer = playerGunPointer;
         this.color = color;
-
-        this.lastShot = new Date().getTime();
+        this.lastShootTick = (lastShootTick) ? lastShootTick : 0
     }
 
     setPosition(position) {
@@ -17,15 +16,15 @@ class Player {
         return this.playerMovement.strength > 0;
     }
 
-    canShoot() {
+    canShoot(currentTick) {
         if (this.playerAim.strength < 80.0) return false;
 
-        const now = new Date().getTime();
-        const diff = (now - this.lastShot) > 500;
-        if (diff) {
-            this.lastShot = now;
+        const canShoot = (currentTick - this.lastShootTick) > 15
+        if (canShoot) {
+            // console.log("current tick=" + currentTick + " lastShootTick=" + this.lastShootTick);
+            this.lastShootTick = currentTick;
         }
-        return diff;
+        return canShoot;
     }
 }
 
