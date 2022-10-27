@@ -34,7 +34,7 @@ var bullets = [];
 /**
  * FPS variables
  */
-const FPS = 5;
+const FPS = 30;
 const MAX_FPS_DELAY = 1000 / FPS; // rollback to 30 FPS
 var deltaTime = 0.0;
 
@@ -42,7 +42,7 @@ var deltaTime = 0.0;
  * Response packages variables
  */
 // Amount of ticks processed necessary to send the package
-const COUNT_TO_SEND = 5;
+const COUNT_TO_SEND = 2;
 
 // count of ticks processed to send the package
 var countToSend = 0;
@@ -523,6 +523,7 @@ class MatchController {
             }
         }
 
+        // TODO: I could do the same for the bullets to do not send uncessary bullets, maybe
         if (canAdd) {
             const worldStateToSend = {
                 tick: worldState.tick,
@@ -862,13 +863,13 @@ function applogInputs(value) {
 }
 
 function saveFile() {
-    fs.writeFile("D:\\Rittmann\\Projetos\\games\\simple card multiplayer game - server\\server\\log.txt", loggerList, function(err) {
-        if (err) {
-            return console.log(err);
-        }
+    // fs.writeFile("D:\\Rittmann\\Projetos\\games\\simple card multiplayer game - server\\server\\log.txt", loggerList, function(err) {
+    //     if (err) {
+    //         return console.log(err);
+    //     }
 
-        console.log("The file was saved!");
-    });
+    //     console.log("The file was saved!");
+    // });
 
     // fs.writeFile("D:\\Rittmann\\Projetos\\games\\simple card multiplayer game - server\\server\\log_input.txt", loggerListInputs, function(err) {
     //     if (err) {
