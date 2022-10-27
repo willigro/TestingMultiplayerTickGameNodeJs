@@ -144,11 +144,6 @@ class MatchController {
 
             // Update the count, I'm going to update it every tick
             countToSend++;
-
-
-
-
-            saveFile();
         }.bind(this), MAX_FPS_DELAY);
     }
 
@@ -854,12 +849,12 @@ function applog(value) {
 }
 
 function applog2(value) {
-    loggerList += "\n" + value;
+    // loggerList += "\n" + value;
     // console.log(value)
 }
 
 function applogInputs(value) {
-    loggerListInputs += value + "\n";
+    // loggerListInputs += value + "\n";
 }
 
 function saveFile() {
